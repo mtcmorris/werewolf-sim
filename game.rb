@@ -1,5 +1,15 @@
 require 'pry'
 class Villager
+  def initialize
+    @alive = true
+    @condemned = false
+    @identified = false
+  end
+
+  def alive?
+    @alive
+  end
+
   def role_prevents_lynching?
     false
   end
@@ -8,15 +18,40 @@ class Villager
     false
   end
 
+  def villager?
+    !werewolf?
+  end
+
   def seer?
     false
+  end
+
+  def identify!
+    @identified = true
+  end
+
+  def identified?
+    @identified
+  end
+
+  def condemned?
+    @condemned
+  end
+
+  def condemn!
+    @condemned = true
+  end
+
+  def die!
+    @alive = false
   end
 end
 
 class Seer < Villager
   def initialize(strategy:)
+
     @strategy = strategy
-    @identified_players = []
+    super()
   end
 
   def role_prevents_lynching?
@@ -24,24 +59,7 @@ class Seer < Villager
   end
 
   def identify_randomly(players)
-    identified_player = (players - @identified_players - [self]).sample
-
-    # We may have identified everyone...
-    if identified_player
-      @identified_players.push identified_player
-    end
-  end
-
-  def identified_werewolfs(active_players)
-    active_players.select{|p|
-      @identified_players.select(&:werewolf?).include?(p)
-    }
-  end
-
-  def identified_villagers(active_players)
-    active_players.select{|p|
-      @identified_players.reject(&:werewolf?).include?(p)
-    }
+    players.reject(&:condemned?).reject(&:identified?).sample&.identify!
   end
 
   def seer?
@@ -55,10 +73,14 @@ end
 
 class AnyWerewolf
   def self.should_reveal?(seer, players)
-    return true if seer.identified_werewolfs(players).count >= 3
-    return true if seer.identified_villagers(players).count > (players.count / 4)
-    # seer.identified_werewolfs(players).count >= (players.select(&:werewolf?).count / 4) ||
+    werewolf_count = players.select(&:werewolf?).count
+    villager_count = players.reject(&:werewolf?).count
+    identified_werewolf_count = players.select(&:werewolf?).select(&:identified?).count
+    identified_villager_count = players.reject(&:werewolf?).select(&:identified?).count
 
+    return true if identified_werewolf_count >= 3
+    return true if identified_villager_count > 3
+    # seer.identified_werewolfs(players).count >= (players.select(&:werewolf?).count / 4) ||
   end
 end
 
@@ -82,119 +104,91 @@ class Werewolf < Villager
 end
 
 class Game
-  def initialize(werewolf_count:, villager_count:, seer_strategy:)
-    @players = []
-    # A condemned villager has revealed their role and should be
-    # eaten next turn
-    @condemned_villagers = []
-
-    # A condemned werewolf has been revealed by the seer and should
-    # be lynched next turn
-    @condemned_werewolfs = []
-    werewolf_count.times do
-      @players << Werewolf.new
-    end
-
-    villager_count -= 1
-    @players << Seer.new(strategy: seer_strategy)
-
-    villager_count -= 2
-    @players << Hunter.new
-    @players << Hunter.new
-    villager_count -= 1
-    @players << Cupid.new
-
-    villager_count.times do
-      @players << Villager.new
-    end
+  def initialize(players)
+    @players = players
   end
 
   def run
     while !game_over? do
-      eat_a_villager
+      eaten_villager = eat_a_villager
       identify_someone if seer
-      if @dead_this_round.is_a?(Hunter)
+      if eaten_villager.is_a?(Hunter)
         lynch_someone(hunter_killing: true)
       end
-      seer_reveals! if seer && seer.should_reveal?(@players)
+      seer_reveals! if seer && seer.should_reveal?(alive_players)
       lynch_someone
     end
 
     @outcome
   end
 
-  def werewolfs
-    @players.select(&:werewolf?)
-  end
-
-  def villagers
-    @players.reject(&:werewolf?)
-  end
-
   def seer
-    @players.detect(&:seer?)
+    villagers.detect(&:seer?)
+  end
+
+  def alive_players
+    @players.select(&:alive?)
   end
 
   def seer_reveals!
-    @condemned_villagers += seer.identified_villagers(@players)
-    @condemned_werewolfs += seer.identified_werewolfs(@players)
-
-    @condemned_villagers = [seer] + @condemned_villagers
-    @condemned_villagers.uniq!
+    @players.select(&:identified?).map(&:condemn!)
   end
 
   def eat_a_villager
-    eaten_villager = @condemned_villagers.shift || villagers.sample
+    eaten_villager = condemned_villagers.first || villagers.sample
 
-    @dead_this_round = eaten_villager
+    eaten_villager.die!
+    eaten_villager
+  end
 
-    @players = @players - [eaten_villager]
+  def villagers
+    @players.select(&:alive?).reject(&:werewolf?)
+  end
+
+  def werewolfs
+    @players.select(&:alive?).select(&:werewolf?)
   end
 
   def identify_someone
-    seer.identify_randomly(@players)
+    seer.identify_randomly(@players.select(&:alive?))
+  end
+
+  def condemned_wolves
+    werewolfs.select(&:condemned?)
+  end
+
+  def condemned_villagers
+    villagers.select(&:condemned?)
   end
 
   def lynch_someone(hunter_killing: false)
-    lynched_person = @condemned_werewolfs.shift || (@players - @condemned_villagers).sample
+    lynched_person = condemned_wolves.first || alive_players.reject(&:condemned?).sample
 
     if !hunter_killing
       return if lynched_person.nil?
 
       if lynched_person.role_prevents_lynching?
-        @condemned_villagers.push lynched_person
-        lynched_person = (@players - [lynched_person]).sample
+        lynched_person.condemn!
+        if lynched_person.seer?
+          seer_reveals!
+        end
+         return lynch_someone
       end
 
       return if lynched_person.nil?
-
-      if lynched_person.seer?
-        seer_reveals!
-      end
     end
 
-    @players = @players - [lynched_person]
+    lynched_person.die!
+    lynched_person
   end
 
   def game_over?
     if werewolfs.count >= villagers.count
       @outcome = :werewolf_win
-    elsif @players.none?(&:werewolf?)
+    elsif werewolfs.count == 0
       @outcome = :villagers_win
     else
       false
     end
   end
 end
-
-outcome = {
-  werewolf_win: 0,
-  villagers_win: 0
-}
-
-10000.times do |t|
-  outcome[Game.new(werewolf_count: 7, villager_count: 26, seer_strategy: AnyWerewolf).run] += 1
-end
-
-puts outcome.inspect
-
