@@ -8,7 +8,7 @@ outcome = {
 
 10000.times do |t|
   @players = []
-  7.times do
+  6.times do
     @players << Werewolf.new
   end
 

@@ -78,7 +78,10 @@ class AnyWerewolf
     identified_werewolf_count = players.select(&:werewolf?).select(&:identified?).count
     identified_villager_count = players.reject(&:werewolf?).select(&:identified?).count
 
-    return true if identified_werewolf_count >= 3
+    return true if werewolf_count == identified_werewolf_count
+    return true if villager_count == identified_villager_count
+    return true if identified_villager_count + identified_werewolf_count >= (players.count / 2)
+    return true if identified_werewolf_count >= 1
     return true if identified_villager_count > 3
     # seer.identified_werewolfs(players).count >= (players.select(&:werewolf?).count / 4) ||
   end
