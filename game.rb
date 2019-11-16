@@ -55,8 +55,8 @@ end
 
 class AnyWerewolf
   def self.should_reveal?(seer, players)
-    return true if seer.identified_werewolfs(players).any?
-    return true if seer.identified_villagers(players).count > (players.count / 2)
+    return true if seer.identified_werewolfs(players).count >= 3
+    return true if seer.identified_villagers(players).count > (players.count / 4)
     # seer.identified_werewolfs(players).count >= (players.select(&:werewolf?).count / 4) ||
 
   end
