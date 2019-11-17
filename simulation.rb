@@ -8,18 +8,17 @@ outcome = {
 
 10000.times do |t|
   @players = []
-  6.times do
+  3.times do
     @players << Werewolf.new
   end
 
-  villager_count = 26
+  villager_count = 12
   @players << Seer.new(strategy: AnyWerewolf)
 
   @players << Hunter.new
-  @players << Hunter.new
   @players << Cupid.new
 
-  (villager_count - 4).times do
+  (villager_count - 3).times do
     @players << Villager.new
   end
 
