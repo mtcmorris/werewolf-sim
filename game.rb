@@ -52,6 +52,7 @@ class Seer < Villager
 
     @strategy = strategy
     super()
+    identify!
   end
 
   def role_prevents_lynching?
