@@ -52,6 +52,7 @@ class Seer < Villager
 
     @strategy = strategy
     super()
+    identify!
   end
 
   def role_prevents_lynching?
@@ -81,8 +82,8 @@ class AnyWerewolf
     return true if werewolf_count == identified_werewolf_count
     return true if villager_count == identified_villager_count
     return true if identified_villager_count + identified_werewolf_count >= (players.count / 2)
-    return true if identified_werewolf_count >= 1
-    return true if identified_villager_count > 3
+    return true if identified_werewolf_count >= 2
+    return true if identified_villager_count > 6
     # seer.identified_werewolfs(players).count >= (players.select(&:werewolf?).count / 4) ||
   end
 end
